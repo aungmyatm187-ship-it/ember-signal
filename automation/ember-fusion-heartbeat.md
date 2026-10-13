@@ -57,15 +57,22 @@ either repository — you are a detector and a reporter, not a fixer.
    print("MISSING:", missing if missing else "none -> SEAM OK")
    ```
 
-3. **Prove the surface consumes exactly that surface.** Open
-   `ember-signal/ember_signal/engine.py` and extract the symbols it imports or
-   calls. Compare them against the engine symbols the contract test pins. Report
-   any symbol the surface uses that the engine no longer provides, and any
-   contract symbol the surface has stopped using.
+3. **Prove the surface consumes exactly that surface.** The surface adapter
+   lives at `ember_signal/engine.py`, and it may not be on the default branch
+   yet. Check these refs in order until you find the adapter:
+   `fix/add-health-endpoint`, `level-up-repo`, then `main`. Record which ref you
+   actually read.
+   - Extract the engine symbols `ember_signal/engine.py` imports or calls, and
+     compare them against the pinned set. Report any symbol the surface uses
+     that the engine no longer provides, and any pinned symbol the surface has
+     stopped using.
+   - If the adapter is not present on any ref you can see, report step 3 as
+     `UNKNOWN (adapter not on a reachable ref)` — do **not** report `SEAM OK`.
 
 4. **Report.** Post a short plain-text report to the run summary containing:
-   - a one-line overall status (`SEAM OK` or `SEAM BROKEN`);
-   - the ember-lite commit SHA and the ember-signal commit SHA you checked;
+   - a one-line overall status: `SEAM OK`, `SEAM BROKEN`, or `UNKNOWN`;
+   - the ember-lite commit SHA and the ember-signal commit SHA you checked, and
+     which ember-signal ref the adapter came from;
    - the engine contract test result;
    - the symbol comparison result;
    - anything you could not verify, stated as `UNKNOWN` — never guessed.
