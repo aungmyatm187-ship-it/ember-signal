@@ -10,24 +10,32 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 DB_PATH = os.path.join(os.path.dirname(__file__), 'data.db')
 EVIDENCE_PATH = os.path.join(os.path.dirname(__file__), 'ember-signal-evidence.json')
 
+# Only these columns are ever returned, so the query cannot be widened by input.
+TOP_BRANDS_QUERY = (
+    "SELECT name, country, brand_value FROM brands "
+    "WHERE brand_value IS NOT NULL ORDER BY brand_value DESC LIMIT 10;"
+)
+
+
 def get_db_data():
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT name, country, brand_value FROM brands WHERE brand_value IS NOT NULL ORDER BY brand_value DESC LIMIT 10;")
-    data = c.fetchall()
-    conn.close()
-    return data
+    # Context manager guarantees the connection is closed even if the query raises.
+    with sqlite3.connect(DB_PATH) as conn:
+        return conn.execute(TOP_BRANDS_QUERY).fetchall()
+
 
 def get_json_evidence():
+    # A missing or malformed evidence file should degrade gracefully, not 500.
     try:
         with open(EVIDENCE_PATH, 'r') as f:
             return json.load(f)
-    except:
-        return {"error": "Evidence file not found"}
+    except (OSError, ValueError) as exc:
+        return {"error": "Evidence file not found", "detail": str(exc)}
+
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
 
 @app.route('/api/signals')
 def get_signals():
