@@ -1,0 +1,44 @@
+name: Bridge Verify (Ember-Lite)
+
+# The fusion gate: after a deployment succeeds, the engine runs its perception
+# pass against the deployed signal service and reports the release-gate verdict.
+# This is the ember-signal side of the Ember-Signal <-> Ember-Lite bridge.
+on:
+  deployment_status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: read
+
+jobs:
+  verify:
+    if: github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # The engine is not on PyPI yet, so it is checked out rather than pip-installed.
+      - uses: actions/checkout@v4
+        with:
+          repository: aungmyatm187-ship-it/ember-lite
+          path: ember-lite
+
+      - name: Install engine dependencies
+        run: pip install -r ember-lite/requirements.txt cryptography
+
+      - name: Perceive the deployed service and run the release gate
+        env:
+          EMBER_SIGNAL_URL: ${{ vars.EMBER_SIGNAL_URL || 'https://ember-signal-web.onrender.com' }}
+          PYTHONPATH: ${{ github.workspace }}/ember-lite
+        run: python ember-lite/scripts/run_gate.py | tee gate.out
+
+      - name: Publish the verdict
+        run: |
+          echo "## Ember Bridge Verification" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat gate.out >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

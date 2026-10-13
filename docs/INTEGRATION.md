@@ -54,6 +54,7 @@ integration.
 | `GET /api/perceive` | `perceive(save=False)` | Reaches the network; may be slow |
 | `GET /api/gate` | `evaluate_release()` | Missing dimensions report `UNKNOWN` |
 | `GET /api/govern` | `get_governance_summary()` | Policies, capabilities, approval gates |
+| `GET /api/evidence/health` | `health_check()` | Engine DB/chain/anchor/sensor probe |
 | `GET /api/verify` | `verify_chain()` | Whole-chain integrity |
 | `GET /api/engine` | `engine_status()` | Is the engine configured and reachable |
 

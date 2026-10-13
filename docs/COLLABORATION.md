@@ -1,49 +1,82 @@
-# Collaboration: the engine operator and this surface
+# Collaboration: this surface and the ember-lite engine operator
 
-Two agents work this ecosystem in parallel, on the same `/workspace/project`
-filesystem:
+Two OpenHands agents work this ecosystem together:
 
-- **Engine operator** — owns **ember-lite** (`/workspace/project/ember-lite`).
-  Runs the "Ember-Lite Level-Up" plan (workflows, integrations, positioning).
-  Its crypto work (evidence chain, Merkle, release gate) is the source of truth
-  for anything the engine routes return.
-- **Surface operator (this repo)** — owns **ember-signal**. Builds and maintains
-  the web surface that exposes the engine and the signal data, and keeps the
-  lumafoundry.live dashboard contract intact.
+- **Engine operator** — owns **ember-lite**, the engine (perception P1–P6, signed
+  evidence chain, release gate, governance). It runs the "Ember-Lite Level-Up"
+  plan, whose **#1 integration target is this repo**.
+- **Surface operator (this repo)** — owns **ember-signal**, the web surface and
+  the lumafoundry.live dashboard contract.
 
-## Shared working tree
+The two sandboxes are **separate** (different runtime hosts). Coordination
+happens through GitHub (branches, PRs) and through the OpenHands Cloud API — not
+a shared live filesystem. Before depending on an engine interface, check the
+engine repo's `master`, not a stale local copy.
 
-Since both operators share `/workspace/project`, edits in one are visible to the
-other immediately. Re-read the sibling checkout before depending on its
-interfaces.
+## The fusion contract
 
-## Contract we share
+The engine operator's plan defines three integration points between the two
+repos. This repo implements them:
 
-`ember_signal/engine.py` shells out to ember-lite and consumes these symbols.
-They are defined by the engine operator; do not reimplement them here.
-
-| Engine symbol | Module | Used by |
+| # | Plan item | This repo |
 |---|---|---|
-| `get_chain_summary()`, `verify_chain()` | `perception.evidence_chain` | `/api/evidence/chain`, `/api/verify` |
-| `perceive(save=False)`, `perceive_summary()` | `perception.layer` | `/api/perceive` |
-| `evaluate_release()`, `format_gate_report()` | `perception.release_gate` | `/api/gate` |
-| `get_governance_summary()` | `perception.governance` | `/api/govern` |
+| 1 | Evidence API: `GET /api/evidence/chain` | `ember_signal/routes.py` |
+| 2 | Perception as a service: `GET /api/perceive` | `ember_signal/routes.py` |
+| 3 | Signed receipts (sign every response) | not yet — see below |
+
+Plus `/api/gate`, `/api/govern`, `/api/verify`, and `/api/evidence/health`
+(engine DB/chain/anchor/sensor probe) for completeness.
+
+### Engine symbols consumed
+
+Defined by the engine operator; do not reimplement here.
+
+| Symbol | Module |
+|---|---|
+| `get_chain_summary()`, `verify_chain()` | `perception.evidence_chain` |
+| `perceive(save=False)`, `perceive_summary()` | `perception.layer` |
+| `evaluate_release()`, `format_gate_report()` | `perception.release_gate` |
+| `get_governance_summary()` | `perception.governance` |
+| `health_check()` | `perception.health` |
 
 `cryptography` is a transitive dependency of the signing path
-(`release_gate` -> `bridge_signatures`); it is pinned in this repo's engine CI
-job so the integration does not depend on ember-lite's requirements list.
+(`release_gate` -> `bridge_signatures`); the engine CI job here pins it so the
+integration does not depend on ember-lite's requirements list.
+
+## The bridge workflow
+
+`.github/workflows/bridge-verify.yml` is the fusion gate. On a successful
+deployment (or manually) it checks out ember-lite, runs its perception pass and
+release gate against the deployed service, and publishes the verdict to the run
+summary. It checks the engine out rather than `pip install`ing it, because the
+engine is not on PyPI yet.
+
+## Health-probe compatibility
+
+ember-lite's `BackendObserver` probes `{url}/api/health` and treats HTTP `200`
+as healthy, `2xx–4xx` as degraded, `5xx` as down. `GET /api/health` in this repo
+returns `200` with `{"status": "healthy", ...}`, so the engine reads this service
+as healthy. The observer's default URL points at the Railway backend; point it
+at this service's URL to observe the web surface instead.
 
 ## Division of change
 
-- Engine semantics (what "cleared", "verified", or a gate decision means) belong
-  to ember-lite. This repo only transports and shapes them.
+- Engine semantics (what "verified", "cleared", or a gate decision mean) belong
+  to ember-lite. This repo transports and shapes them.
 - The `/api/signals` shape belongs to this repo, because the lumafoundry.live
-  bridge validates it. See [INTEGRATION.md](INTEGRATION.md) for the exact zod
-  contract and the test that pins it.
-- Neither operator pushes to the other's repository. Each pushes to its own.
+  bridge validates it (see [INTEGRATION.md](INTEGRATION.md)).
+- Neither operator pushes to the other's repository.
 
 ## Honesty rule (both repos)
 
 Unknown is never a default. The engine reports `UNKNOWN` for missing release-gate
 dimensions; this repo returns `503` for an absent engine rather than a fabricated
 payload. If a change would make either side invent data, it is the wrong change.
+
+## Not done yet
+
+- **Signed receipts** (plan integration point #3): signing every HTTP response
+  with `perception.bridge_signatures.sign()`. It needs a key-management decision
+  (whose key, rotated how) before it belongs in a public endpoint.
+- **Per-block chain lookup** and **RFC 3161 timestamp anchoring** — engine-side
+  gaps tracked by the engine operator.

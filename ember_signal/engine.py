@@ -41,6 +41,10 @@ _OPERATIONS = {
     from perception.evidence_chain import get_chain_summary, verify_chain
     result = {"summary": get_chain_summary(), "verify": verify_chain()}
 """,
+    "health": """
+    from perception.health import health_check
+    result = health_check()
+""",
     "perceive": """
     from perception.layer import perceive, perceive_summary
     report = perceive(save=False)

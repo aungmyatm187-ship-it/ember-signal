@@ -48,10 +48,17 @@ def test_govern_returns_summary(engine_dir, client):
 
 
 def test_missing_engine_is_unavailable_not_fabricated(without_engine, client):
-    for path in ("/api/evidence/chain", "/api/gate", "/api/govern", "/api/perceive"):
+    for path in ("/api/evidence/chain", "/api/gate", "/api/govern", "/api/perceive", "/api/evidence/health"):
         resp = client.get(path)
         assert resp.status_code == 503, path
         assert resp.get_json()["error"] == "engine_unavailable"
+
+
+def test_evidence_health_reports_engine_db_state(engine_dir, client):
+    resp = client.get("/api/evidence/health")
+    assert resp.status_code == 200
+    data = resp.get_json()["data"]
+    assert "healthy" in data and "checks" in data
 
 
 def test_health_still_up_when_engine_down(without_engine, client):

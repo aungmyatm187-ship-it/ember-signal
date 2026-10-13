@@ -17,6 +17,7 @@ checkout is configured — surfaces the engine over read-only HTTP routes.
 | `GET /api/perceive` | Fresh perception pass |
 | `GET /api/gate` | P5 release gate (unknown dimensions stay `UNKNOWN`) |
 | `GET /api/govern` | P6 governance summary |
+| `GET /api/evidence/health` | Engine's own `health_check()`: DB/chain/anchor/sensor probe |
 | `GET /api/verify` | Whole-chain integrity check |
 | `GET /api/engine` | Is the engine configured and reachable |
 

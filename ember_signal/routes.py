@@ -53,6 +53,11 @@ def build_blueprint() -> Blueprint:
         """P6 governance summary: policies, capabilities, approval gates."""
         return _respond("govern")
 
+    @bp.get("/api/evidence/health")
+    def evidence_health():
+        """The engine's own health_check(): DB/chain/anchor/sensor probe."""
+        return _respond("health")
+
     @bp.get("/api/verify")
     def verify():
         """Whole-chain integrity check (per-block lookup is not exposed yet)."""
