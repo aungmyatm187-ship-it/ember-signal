@@ -1,157 +1,82 @@
 # Ember Signal
 
-A lightweight Flask application that displays a "live market pulse" dashboard using data from a SQLite database and a JSON evidence file.
+Web surface for the Ember governance layer. **Signals to Evidence.**
 
-## Overview
+A small Flask app that serves a live market-pulse dashboard, exposes the signal
+data as JSON, and — when an [ember-lite](https://github.com/aungmyatm187-ship-it/ember-lite)
+checkout is configured — surfaces the engine over read-only HTTP routes.
 
-Ember Signal loads brand-value information from a SQLite database and combines it with structured evidence records to power a browser-based dashboard. The app exposes a small JSON API and renders a single-page report in the browser.
+## Endpoints
 
-This repository is a minimal example of:
+| Endpoint | Purpose |
+|---|---|
+| `GET /` | Dashboard (`index.html`) |
+| `GET /api/signals` | `{ top_brands, evidence }` — brands from `data.db` + the evidence JSON |
+| `GET /api/health` | Liveness probe (`status`, `service`, `engine`) |
+| `GET /api/evidence/chain` | ember-lite signed chain summary + verification |
+| `GET /api/perceive` | Fresh perception pass |
+| `GET /api/gate` | P5 release gate (unknown dimensions stay `UNKNOWN`) |
+| `GET /api/govern` | P6 governance summary |
+| `GET /api/verify` | Whole-chain integrity check |
+| `GET /api/engine` | Is the engine configured and reachable |
 
-- serving a web dashboard with Flask
-- querying a SQLite database
-- exposing a lightweight API
-- displaying evidence and ranked brand data in one interface
+The engine routes return `503` when no engine is present — they never fabricate a
+payload. See [docs/INTEGRATION.md](docs/INTEGRATION.md).
 
-## Features
-
-- Ranks the top brands by value from the `brands` table in `data.db`
-- Loads evidence records from `ember-signal-evidence.json`
-- Serves a dashboard at `/`
-- Exposes combined data at `/api/signals`
-- Runs locally with Flask and can be served with Gunicorn in production
-
-## Project Structure
-
-- `app.py` — Flask app and API routes
-- `templates/index.html` — browser dashboard UI
-- `data.db` — SQLite database containing brand data
-- `ember-signal-evidence.json` — evidence metadata loaded by the app
-- `requirements.txt` — Python runtime dependencies
-- `requirements-dev.txt` — extra dependencies for running tests
-- `tests/test_app.py` — pytest suite for the app and API
-
-## Tech Stack
-
-- Python 3
-- Flask 3.1.3
-- SQLite
-- Gunicorn 23.0.0
-
-## Getting Started
-
-### 1. Clone the repository
+## Run
 
 ```bash
-git clone https://github.com/highfive251677-wq/ember-signal.git
-cd ember-signal
-```
-
-### 2. Create and activate a virtual environment
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-```
-
-On Windows:
-
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-### 3. Install dependencies
-
-```bash
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
+python app.py            # http://localhost:5000
 ```
 
-### 4. Run the app
+Production (the Render start command):
 
 ```bash
-python app.py
+gunicorn --bind 0.0.0.0:$PORT app:app
 ```
 
-The app runs on port `5000` by default and is available at:
+`GET /api/health` is the Render `healthCheckPath`.
 
-```text
-http://localhost:5000/
+## Test
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+```
+
+With an ember-lite checkout present the engine routes are exercised against a
+real subprocess; without one those tests skip and the engine routes return 503.
+
+```bash
+EMBER_LITE_DIR=/path/to/ember-lite python -m pytest -q
 ```
 
 ## Configuration
 
-The app reads a few environment variables:
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `5000` | Dev-server port |
+| `SECRET_KEY` | `dev-secret-change-me` | Flask secret key |
+| `EMBER_CORS_ORIGIN` | unset | If set, allows that browser origin to read the API |
+| `EMBER_LITE_DIR` | `/opt/ember-lite` | Path to an ember-lite checkout |
+| `EMBER_LITE_PYTHON` | current interpreter | Interpreter with ember-lite's deps |
+| `EMBER_ENGINE_TIMEOUT` | `30` | Seconds before an engine call is abandoned |
 
-- `PORT` — sets the port used by the Flask dev server (default: `5000`)
-- `SECRET_KEY` — Flask secret key (default: `dev-secret-change-me`)
+## Project layout
 
-Example:
-
-```bash
-export PORT=8000
-export SECRET_KEY=my-secret-key
-python app.py
 ```
-
-## API
-
-### GET /api/signals
-
-Returns a JSON response containing:
-
-- `top_brands`: the top-ranked brand values from the SQLite database
-- `evidence`: the JSON evidence payload loaded from `ember-signal-evidence.json`
-
-Example response:
-
-```json
-{
-  "top_brands": [
-    ["Apple", "USA", 470.9],
-    ["Microsoft", "USA", 388.5]
-  ],
-  "evidence": {
-    "updatedAt": "2026-09-05T00:00:00Z",
-    "records": [
-      {
-        "id": "real-record-001",
-        "title": "My First Evidence",
-        "status": "observed"
-      }
-    ]
-  }
-}
+app.py                        Flask app: /, /api/signals, /api/health
+index.html                    dashboard (served from the repo root)
+ember_signal/                 optional HTTP surface over the ember-lite engine
+data.db                       SQLite seed data (brands table)
+ember-signal-evidence.json    evidence records
+tests/                        pytest suite (no mocks)
+docs/INTEGRATION.md           ember-signal ↔ ember-lite wiring
 ```
-
-## Testing
-
-Install the dev dependencies and run pytest from the repository root:
-
-```bash
-pip install -r requirements-dev.txt
-pytest
-```
-
-The suite exercises the real app and the committed `data.db` / evidence file; it uses no mocks.
-
-## Production Deployment
-
-This app is compatible with a standard WSGI server such as Gunicorn:
-
-```bash
-gunicorn app:app
-```
-
-## Notes
-
-- The dashboard escapes all values before rendering, so database or evidence content is never
-  interpreted as HTML.
-- If the evidence file is missing or malformed, `/api/signals` still returns `200` with an
-  `evidence.error` field rather than failing.
-- `data.db` is committed as sample seed data. If you regenerate it, keep the `brands` table
-  schema (`id`, `name`, `country`, `brand_value`) intact.
 
 ## License
 
-No explicit license file was found in this repository. If you plan to distribute or reuse this project, consider adding an appropriate open-source license.
+No license file is present in this repository. Add one before distributing or
+reusing the project.

@@ -10,7 +10,7 @@ venv/
 .coverage
 htmlcov/
 
-# Local databases (seeded/generated, not source)
+# SQLite sidecar files (data.db itself is committed seed data)
 *.db-journal
 *.sqlite3
 
@@ -18,3 +18,4 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+
