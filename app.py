@@ -3,10 +3,16 @@ from flask import Flask, jsonify, send_from_directory
 import sqlite3
 import json
 
+from ember_signal import build_blueprint, engine_status
+
 # The dashboard lives at the repo root, not in templates/ or static/.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
+
+# Engine-backed routes: /api/evidence/chain, /api/perceive, /api/gate,
+# /api/govern, /api/verify, /api/engine.
+app.register_blueprint(build_blueprint())
 
 # Paths are relative to this file (root of repo)
 DB_PATH = os.path.join(BASE_DIR, 'data.db')
@@ -35,8 +41,25 @@ def index():
 
 @app.route('/api/health')
 def health():
-    # Probed by ember-lite's BackendObserver at /api/health.
-    return jsonify({"status": "healthy", "service": "ember-signal"})
+    # Probed by ember-lite's BackendObserver at /api/health. "status" stays
+    # "healthy" (the service is up) even if the engine is not; the engine field
+    # reports that separately rather than hiding it.
+    return jsonify({
+        "status": "healthy",
+        "service": "ember-signal",
+        "engine": engine_status(),
+    })
+
+@app.after_request
+def add_cors_headers(response):
+    # Off by default. Set EMBER_CORS_ORIGIN (e.g. https://lumafoundry.live) to
+    # let a browser origin read these endpoints.
+    origin = os.environ.get("EMBER_CORS_ORIGIN")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Vary"] = "Origin"
+    return response
+
 
 @app.route('/api/signals')
 def get_signals():
