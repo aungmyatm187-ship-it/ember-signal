@@ -1,0 +1,50 @@
+name: Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: [ '3.11', '3.12', '3.13' ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run tests
+        run: python -m pytest -q
+
+  # Runs the engine-backed routes against a real ember-lite checkout, so the
+  # integration is proven on CI and not only locally.
+  engine-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: aungmyatm187-ship-it/ember-lite
+          path: ember-lite
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        # `cryptography` is a transitive dependency of the engine's signing
+        # path (release_gate -> bridge_signatures); pin it explicitly so the
+        # engine job does not depend on ember-lite listing it.
+        run: pip install -r requirements-dev.txt -r ember-lite/requirements.txt cryptography
+      - name: Run tests with the engine present
+        env:
+          EMBER_LITE_DIR: ${{ github.workspace }}/ember-lite
+        run: python -m pytest -q
