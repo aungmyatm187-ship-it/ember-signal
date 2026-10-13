@@ -1,8 +1,13 @@
 name: Bridge Verify (Ember-Lite)
 
-# The fusion gate: after a deployment succeeds, the engine runs its perception
-# pass against the deployed signal service and reports the release-gate verdict.
-# This is the ember-signal side of the Ember-Signal <-> Ember-Lite bridge.
+# The fusion gate: after a deployment succeeds, check the deployed signal
+# service is up, then run the engine's local release gate and publish the
+# verdict. This is the ember-signal side of the Ember-Signal <-> Ember-Lite bridge.
+#
+# Note on scope: scripts/run_gate.py runs a LOCAL perceive() pass; its
+# BackendObserver targets a hard-coded default URL and cannot be pointed at this
+# service. So the deployed service is checked by a direct HTTP probe (which does
+# use EMBER_SIGNAL_URL), and the gate is reported for what it actually measures.
 on:
   deployment_status:
   workflow_dispatch:
@@ -15,6 +20,8 @@ jobs:
   verify:
     if: github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success'
     runs-on: ubuntu-latest
+    env:
+      EMBER_SIGNAL_URL: ${{ vars.EMBER_SIGNAL_URL || 'https://ember-signal-web.onrender.com' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -30,15 +37,24 @@ jobs:
       - name: Install engine dependencies
         run: pip install -r ember-lite/requirements.txt cryptography
 
-      - name: Perceive the deployed service and run the release gate
+      - name: Probe the deployed service (uses EMBER_SIGNAL_URL)
+        run: |
+          echo "Target: $EMBER_SIGNAL_URL"
+          for path in /api/health /api/signals; do
+            code=$(curl -s -o /tmp/body -w '%{http_code}' --max-time 20 "$EMBER_SIGNAL_URL$path" || echo 000)
+            echo "$path -> HTTP $code"
+            if [ "$code" != "200" ]; then echo "::warning::$EMBER_SIGNAL_URL$path returned $code"; fi
+          done
+
+      - name: Run the engine's local release gate
         env:
-          EMBER_SIGNAL_URL: ${{ vars.EMBER_SIGNAL_URL || 'https://ember-signal-web.onrender.com' }}
           PYTHONPATH: ${{ github.workspace }}/ember-lite
         run: python ember-lite/scripts/run_gate.py | tee gate.out
 
       - name: Publish the verdict
         run: |
           echo "## Ember Bridge Verification" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deployed service: $EMBER_SIGNAL_URL" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           cat gate.out >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
