@@ -29,6 +29,10 @@ def get_json_evidence():
 def index():
     return render_template('index.html')
 
+@app.route('/api/health')
+def health():
+    return jsonify({"status": "ok"}), 200
+
 @app.route('/api/signals')
 def get_signals():
     db_data = get_db_data()
