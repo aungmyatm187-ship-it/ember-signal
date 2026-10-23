@@ -16,6 +16,8 @@ import sqlite3
 from flask import Flask, jsonify, send_from_directory
 
 from ember_signal import build_blueprint, engine_status
+from ember_signal.trust import after_request_response_signing
+from sync_service import build_sync_blueprint
 
 # index.html lives at the repo root (not templates/ or static/), matching the
 # other Ember repos, so it is served directly rather than via render_template.
@@ -28,6 +30,9 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me")
 # /api/govern, /api/verify, /api/engine. Each returns 503 when the engine is
 # absent rather than fabricating data.
 app.register_blueprint(build_blueprint())
+
+# B4: Runtime data sync endpoints (/api/sync/run, /api/sync/status)
+app.register_blueprint(build_sync_blueprint())
 
 DB_PATH = os.path.join(BASE_DIR, "data.db")
 EVIDENCE_PATH = os.path.join(BASE_DIR, "ember-signal-evidence.json")
@@ -89,6 +94,11 @@ def get_signals():
         "top_brands": get_db_data(),
         "evidence": get_json_evidence(),
     })
+
+
+# B5: Attach response signing to /api/signals so the B1 edge worker can verify payload integrity.
+# If LUMA_RESPONSE_SIGNING_KEY is not set in the environment, this safely does nothing.
+after_request_response_signing(app, path="/api/signals")
 
 
 if __name__ == "__main__":
